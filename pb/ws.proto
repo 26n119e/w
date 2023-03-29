@@ -1,0 +1,17 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "./;pb";
+
+message Payload {
+	string Type = 1;
+	bytes data = 2;
+}
+
+message HeartbeatReq {
+	string token = 1;
+}
+
+message HeartBeatResp {
+	int32 code = 1;
+}

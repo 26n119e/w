@@ -1,12 +1,9 @@
 package main
 
 import (
-	"google.golang.org/protobuf/proto"
 	"net/http"
-	"time"
-	"ws/consts"
-	"ws/pb"
 	"ws/ws"
+	"fmt"
 )
 
 // We'll need to define an Upgrader
@@ -17,45 +14,45 @@ func main() {
 
 	http.HandleFunc("/ws", ws.Endpoint)
 	//http.HandleFunc("/designate", Designate)
+	http.HandleFunc("/container_broadcast", broadcast2container)
 
 	//go broadcastTimer()
 	if err := http.ListenAndServe(":7777", nil); err != nil {
+		fmt.Printf("err: %v\n", err)
 		return
 	}
 
 }
 
 func Designate(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	//msg := r.URL.Query().Get("msg")
+	// token := r.URL.Query().Get("token")
+	// msg := r.URL.Query().Get("msg")
 
-	for client, _ := range ws.Manager.Clients {
-		if client.Token == token {
-			// TODO
-			break
-		}
-	}
+	// for client, _ := range ws.Manager.Clients {
+	// 	if client.Token == token {
+	// 		// TODO
+	// 		break
+	// 	}
+	// }
 }
 
-func broadcastTimer() {
-
-	for {
-		timer := time.NewTimer(3 * time.Second)
-		select {
-		case <-timer.C:
-			heartbeatReq := &pb.HeartbeatReq{
-				Token: "test",
-			}
-
-			heartbeatReqProto, _ := proto.Marshal(heartbeatReq)
-
-			payload := &pb.Payload{
-				Type: consts.WsHeartbeatReq,
-				Data: heartbeatReqProto,
-			}
-
-			payloadProto, _ := proto.Marshal(payload)
-			ws.Manager.Broadcast <- payloadProto
-		}
+func broadcast2container(w http.ResponseWriter, r *http.Request) {
+	msg := r.URL.Query().Get("msg")
+	if msg == "" {
+		fmt.Printf("%s\n", "error argument: need msg in headers.")
+		return
 	}
+	containerId := r.URL.Query().Get("container_id")
+	if containerId == "" {
+		fmt.Printf("%s\n", "error argument: need container_id in headers.")
+		return
+	}
+
+	// example, unuse protobuf
+	containerPackage := &ws.ContainerPackage{
+		ContainerId: containerId,
+		Msg: []byte(msg),
+	}
+
+	ws.Manager.ContainerBroadcast <- containerPackage
 }

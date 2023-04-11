@@ -5,6 +5,6 @@ const (
 	WsHeartbeatReq  = "ws.heartbeat.req"
 	WsHeartbeatResp = "ws.heartbeat.resp"
 
-	// ClientDefaultTLL time to live
-	ClientDefaultTLL = 5
+	// ClientDefaultTTL time to live
+	ClientDefaultTTL = 20
 )

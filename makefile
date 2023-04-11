@@ -2,6 +2,10 @@
 proto:
 	protoc --go_out=./pb pb/*.proto
 
-.PHONY: run
+.PHONY: server
 run:
-	go run main.go
+	go run server.go
+
+.PHONY: client
+run:
+	go run client.go

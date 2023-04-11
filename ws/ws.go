@@ -5,23 +5,15 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
-	"net/http"
+	"strings"
 	"time"
 	"ws/consts"
 	"ws/logic"
 	"ws/pb"
-	"strings"
 )
 
-var upgrade = websocket.Upgrader{
-	ReadBufferSize:   1024,
-	WriteBufferSize:  1024,
-	CheckOrigin:      func(r *http.Request) bool { return true },
-	HandshakeTimeout: 10 * time.Second,
-}
-
 type ContainerPackage struct {
-	Msg []byte
+	Msg         []byte
 	ContainerId string
 }
 
@@ -31,103 +23,67 @@ type Package struct {
 }
 
 type ClientManager struct {
-	Register   chan *Client
-	Unregister chan *Client
-	ContainerBroadcast  chan *ContainerPackage
-	Designator chan *Package
-	Containers map[string]map[*Client]struct{}
+	Register           chan *Client
+	Unregister         chan *Client
+	ContainerBroadcast chan *ContainerPackage
+	Designator         chan *Package
+	Containers         map[string]map[*Client]struct{}
 }
 
 type Client struct {
-	Conn  *websocket.Conn
+	Conn        *websocket.Conn
 	ContainerId string
-	Send  chan []byte
-	Token string
-	TTL   int8
+	Send        chan []byte
+	Token       string
+	TTL         int8
 }
 
 var Manager = &ClientManager{
-	Register:   make(chan *Client),
-	Unregister: make(chan *Client),
-	ContainerBroadcast:  make(chan *ContainerPackage),
-	Designator: make(chan *Package),
-	Containers: make(map[string]map[*Client]struct{}),
+	Register:           make(chan *Client),
+	Unregister:         make(chan *Client),
+	ContainerBroadcast: make(chan *ContainerPackage),
+	Designator:         make(chan *Package),
+	Containers:         make(map[string]map[*Client]struct{}),
 }
 
-func (manager *ClientManager) Run() {
+func (cm *ClientManager) Run() {
 	for {
 		select {
-		case client := <-manager.Register:
-			if manager.Containers[client.ContainerId] == nil {
-				manager.Containers[client.ContainerId] = make(map[*Client]struct{})
+		case client := <-cm.Register:
+			if cm.Containers[client.ContainerId] == nil {
+				cm.Containers[client.ContainerId] = make(map[*Client]struct{})
 			}
 
-			manager.Containers[client.ContainerId][client] = struct{}{}
-			for containerId, container := range manager.Containers {
-				title := fmt.Sprintf("@@@@@@@@@@@@@@@@@@@@ROOM#%s@@@@@@@@@@@@@@@@@@@@", containerId)
-				fmt.Printf("%s\n", title)
-				for client, _ := range container {
-					fmt.Printf("#%s#: %v\n", client.Token, client)
-				}
-				fmt.Printf("%s\n\n", strings.Repeat("@", len(title)))
-			}
-		case client := <-manager.Unregister:
+			cm.Containers[client.ContainerId][client] = struct{}{}
+			cm.inspector()
+		case client := <-cm.Unregister:
 			client.Conn.Close()
 			close(client.Send)
-			delete(manager.Containers[client.ContainerId], client)
-			if len(manager.Containers[client.ContainerId]) == 0 {
-				delete(manager.Containers, client.ContainerId)
+			delete(cm.Containers[client.ContainerId], client)
+			if len(cm.Containers[client.ContainerId]) == 0 {
+				delete(cm.Containers, client.ContainerId)
 			}
-
-			for containerId, container := range manager.Containers {
-				title := fmt.Sprintf("@@@@@@@@@@@@@@@@@@@@ROOM#%s@@@@@@@@@@@@@@@@@@@@", containerId)
-				fmt.Printf("%s\n", title)
-				for client, _ := range container {
-					fmt.Printf("#%s#: %v\n", client.Token, client)
-				}
-				fmt.Printf("%s\n\n", strings.Repeat("@", len(title)))
+			cm.inspector()
+		case containerPackage := <-cm.ContainerBroadcast:
+			for client, _ := range cm.Containers[containerPackage.ContainerId] {
+				client.Send <- containerPackage.Msg
 			}
-		case containerPackage := <-manager.ContainerBroadcast:
-			for client, _ := range manager.Containers[containerPackage.ContainerId] {
-				select {
-				case client.Send <- containerPackage.Msg:
-					//default:
-					//	close(client.Send)
-					//	delete(Manager.Clients, client)
-				}
-
-			}
-		case p := <-manager.Designator:
+		case p := <-cm.Designator:
 			p.Client.Send <- p.Msg
 		}
 
 	}
 }
-func Endpoint(w http.ResponseWriter, r *http.Request) {
-	token := r.Header.Get("token")
-	if token == "" {
-		fmt.Println("error argument: need token in headers.")
-		return
-	}
 
-	containerId := r.Header.Get("container_id")
-	if containerId == "" {
-		fmt.Println("error argument: need room in headers.")
-		return
+func (cm *ClientManager) inspector() {
+	for containerId, container := range cm.Containers {
+		title := fmt.Sprintf(strings.Repeat("@", 33)+"ROOM#%s"+strings.Repeat("@", 33), containerId)
+		fmt.Printf("%s\n", title)
+		for client, _ := range container {
+			fmt.Printf("%v\n", client)
+		}
+		fmt.Printf("%s\n\n", strings.Repeat("@", len(title)))
 	}
-	
-	ws, _ := upgrade.Upgrade(w, r, nil)
-	client := &Client{
-		Conn:  ws,
-		ContainerId: containerId,
-		Token: r.Header.Get("token"),
-		Send:  make(chan []byte),
-		TTL:   consts.ClientDefaultTTL,
-	}
-	Manager.Register <- client
-
-	go client.Read()
-	go client.Write()
 }
 
 func (c *Client) Write() {
@@ -137,10 +93,10 @@ func (c *Client) Write() {
 		select {
 		case msg, ok := <-c.Send:
 			if !ok {
-				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				_ = c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-			c.Conn.WriteMessage(websocket.BinaryMessage, msg)
+			_ = c.Conn.WriteMessage(websocket.BinaryMessage, msg)
 		}
 	}
 }
@@ -153,7 +109,7 @@ func (c *Client) timeout(ctx context.Context) {
 			c.TTL--
 			// fmt.Printf("%s's TTL: %v\n", c.Token, c.TTL)
 			if c.TTL <= 0 {
-				c.Conn.Close()
+				_ = c.Conn.Close()
 				return
 			}
 		case <-ctx.Done():
@@ -179,7 +135,9 @@ func (c *Client) Read() {
 		}
 
 		payload := &pb.Payload{}
-		proto.Unmarshal(msg, payload)
+		if err := proto.Unmarshal(msg, payload); err != nil {
+			return
+		}
 
 		switch payload.Type {
 		case consts.WsHeartbeatReq:

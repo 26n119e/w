@@ -7,15 +7,8 @@ import (
 	"ws/pb"
 )
 
-func HeartbeatReq(conn *websocket.Conn, data []byte) {
-	heartbeatReq := &pb.HeartbeatReq{}
-	if err := proto.Unmarshal(data, heartbeatReq); err != nil {
-		return
-	}
-
-	heartbeatResp := &pb.HeartBeatResp{}
-	heartbeatResp.Code = 200
-	heartbeatRespProto, _ := proto.Marshal(heartbeatResp)
+func SendHeartbeatResp(conn *websocket.Conn) {
+	heartbeatRespProto, _ := proto.Marshal(&pb.HeartBeatResp{Code: 200})
 
 	payload := &pb.Payload{
 		Type: consts.WsHeartbeatResp,
@@ -24,5 +17,5 @@ func HeartbeatReq(conn *websocket.Conn, data []byte) {
 
 	payloadProto, _ := proto.Marshal(payload)
 
-	conn.WriteMessage(websocket.PingMessage, payloadProto)
+	conn.WriteMessage(websocket.BinaryMessage, payloadProto)
 }

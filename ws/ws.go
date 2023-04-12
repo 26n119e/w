@@ -142,7 +142,7 @@ func (c *Client) Read() {
 		switch payload.Type {
 		case consts.WsHeartbeatReq:
 			c.TTL = consts.ClientDefaultTTL
-			logic.HeartbeatReq(c.Conn, payload.Data)
+			logic.SendHeartbeatResp(c.Conn)
 		}
 
 	}

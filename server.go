@@ -25,7 +25,6 @@ func main() {
 	//http.HandleFunc("/designate", designate)
 	http.HandleFunc("/container_broadcast", broadcast2container)
 
-	//go broadcastTimer()
 	if err := http.ListenAndServe(":7777", nil); err != nil {
 		fmt.Printf("err: %v\n", err)
 		return
@@ -35,7 +34,13 @@ func main() {
 
 func designate(w http.ResponseWriter, r *http.Request) {
 	// token := r.URL.Query().Get("token")
+	// if token == "" {
+	// 	fmt.Println("error argument: need token in url.")
+	// }
 	// msg := r.URL.Query().Get("msg")
+	// if msg == "" {
+	// 	fmt.Println("error argument: need msg in url.")
+	// }
 
 	// for client, _ := range ws.Manager.Clients {
 	// 	if client.Token == token {
@@ -47,13 +52,13 @@ func designate(w http.ResponseWriter, r *http.Request) {
 func endpoint(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
 	if token == "" {
-		fmt.Println("error argument: need token in headers.")
+		fmt.Println("error argument: need token in url.")
 		return
 	}
 
 	containerId := r.URL.Query().Get("container_id")
 	if containerId == "" {
-		fmt.Println("error argument: need room in headers.")
+		fmt.Println("error argument: need container_id in url.")
 		return
 	}
 
@@ -74,12 +79,12 @@ func endpoint(w http.ResponseWriter, r *http.Request) {
 func broadcast2container(_ http.ResponseWriter, r *http.Request) {
 	msg := r.URL.Query().Get("msg")
 	if msg == "" {
-		fmt.Printf("%s\n", "error argument: need msg in headers.")
+		fmt.Printf("%s\n", "error argument: need msg in url.")
 		return
 	}
 	containerId := r.URL.Query().Get("container_id")
 	if containerId == "" {
-		fmt.Printf("%s\n", "error argument: need container_id in headers.")
+		fmt.Printf("%s\n", "error argument: need container_id in url.")
 		return
 	}
 
